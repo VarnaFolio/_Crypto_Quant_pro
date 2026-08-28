@@ -1,0 +1,120 @@
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS balances (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset TEXT NOT NULL,
+  available NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  reserved NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, asset)
+);
+
+CREATE TABLE IF NOT EXISTS positions (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  amount NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  average_entry NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, symbol)
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+  type TEXT NOT NULL CHECK (type IN ('MARKET', 'LIMIT')),
+  status TEXT NOT NULL,
+  price NUMERIC(30, 12) NOT NULL,
+  quantity NUMERIC(30, 12) NOT NULL,
+  quote_amount NUMERIC(30, 12) NOT NULL,
+  fee NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS trades (
+  id UUID PRIMARY KEY,
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  side TEXT NOT NULL CHECK (side IN ('BUY', 'SELL')),
+  price NUMERIC(30, 12) NOT NULL,
+  quantity NUMERIC(30, 12) NOT NULL,
+  quote_amount NUMERIC(30, 12) NOT NULL,
+  fee NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  realized_pnl NUMERIC(30, 12) NOT NULL DEFAULT 0,
+  executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE trades ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  condition TEXT NOT NULL,
+  target NUMERIC(30, 12) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE alerts ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS alert_events (
+  id UUID PRIMARY KEY,
+  alert_id UUID REFERENCES alerts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  value NUMERIC(30, 12) NOT NULL,
+  triggered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE alert_events ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  ip INET,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS audit_logs_user_created_idx ON audit_logs (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS paper_state (
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE),
+  payload JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS market_snapshots (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  symbol TEXT NOT NULL,
+  source TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+  id UUID PRIMARY KEY,
+  event_id TEXT NOT NULL UNIQUE,
+  payment_intent_id TEXT NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('CREDITED', 'REJECTED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS trades_user_executed_idx ON trades (user_id, executed_at DESC);
+CREATE INDEX IF NOT EXISTS market_snapshots_symbol_captured_idx ON market_snapshots (symbol, captured_at DESC);

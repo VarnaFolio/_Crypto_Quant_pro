@@ -1,0 +1,23 @@
+{
+  "name": "crypto-quant-pro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.mjs",
+    "backup": "node --env-file=.env scripts/backup.mjs",
+    "migrate": "node --env-file=.env scripts/migrate.mjs",
+    "restore": "node --env-file=.env scripts/restore.mjs",
+    "verify-binance-permissions": "node --env-file=.env scripts/verify-binance-permissions.mjs",
+    "test": "node --test paper-engine.test.mjs futures-indicators.test.mjs payments.test.mjs security.test.mjs websocket-reconnect.test.mjs",
+    "test:acceptance": "node --test paper-acceptance.test.mjs",
+    "test:load": "node load-market-smoke.mjs",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "otpauth": "^9.5.1",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

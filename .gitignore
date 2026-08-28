@@ -1,0 +1,8 @@
+.env
+paper-store.json
+futures-history.json
+*.log
+*.tmp
+node_modules/
+backups/
+certs/

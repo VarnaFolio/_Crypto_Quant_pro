@@ -1,0 +1,40 @@
+name: Database Backup
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create database snapshot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PAPER_STORAGE: postgres
+        run: npm run backup
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-quant-pro-database-backup-${{ github.run_id }}
+          path: backups/*.json
+          if-no-files-found: error
+          retention-days: 30
